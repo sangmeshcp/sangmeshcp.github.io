@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Homework4</title>
+<!--
+<BODY>
+This is for USC disclaimer
+</BODY>
+-->
+
+<script type="text/javascript">
+var html_text="";
+var listing_flag=true;
+var xmlDoc;
+function viewxml(yo)
+	{
+		
+		//var regex =/^http/;
+		var url=yo.URL.value;
+		//if(yomachi.match(regex)
+		//url="http://scf.usc.edu/~channaba/"+yomachi;
+				function loadXML(url)
+				{	
+					if (window.XMLHttpRequest)
+  					{// code for IE7+, Firefox, Chrome, Opera, Safari
+  					xmlhttp=new XMLHttpRequest();
+  					}
+					else
+  					{// code for IE6, IE5
+  					xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+  					}
+					xmlhttp.open("GET",url,false);
+					xmlhttp.send();
+					xmlDoc=xmlhttp.responseXML;
+					if(!xmlDoc)
+					{
+					alert("XML not found!!!");
+					}
+					return xmlDoc;
+				}
+		xmlDoc = loadXML(url);
+		if(window.ActiveXobject) //IF IE
+		{ 
+		if(xmlDoc.parseError.errorCode !=0)
+		{
+	 		var Err=xmlDoc.parseError;
+			generateError(xmlDoc);
+			alert("error in XML!!");
+		}
+		else
+		{
+			genHTML(xmlDoc);
+			Win= window.open("", "hw4", "height=800,width=600,scrollbars=yes,toolbar=yes");
+			Win.document.write(html_text);
+		}
+		}	
+		else //other browsers
+		{
+			if (xmlDoc.documentElement.nodeName=="parsererror")
+			{
+			alert("error in XML!!");
+			}
+			else
+			{
+				var listingscheck=xmlDoc.getElementsByTagName("Listings")[0].childNodes;
+				if(listingscheck.length==0)
+       				 {
+        		 	  alert("There are no lisitings in the  xml");
+				  listing_flag=false;
+		                 }
+				if(listing_flag==true)
+				{
+				html_text="";
+				xmlDoc.onload=genHTML(xmlDoc);
+				Win=window.open(" ","hw4","height=800,width=600 ,scrollbars=yes,toolbar=yes");
+				Win.document.write(html_text);
+				}
+			}
+		}
+Win.document.close();
+}
+
+function genHTML(xmlDoc)
+{
+ELEMENT_NODE =1; 
+root=xmlDoc.DocumentElement;
+var listings=xmlDoc.getElementsByTagName("Listings")[0].childNodes;
+html_text+="<html><title>real estate listings</title><h2>Real Estate Listings </h2>";
+html_text +="<table border='2'>";
+
+        for(i=0;i<listings.length;i++)
+        {
+          if(listings.item(i).nodeType==ELEMENT_NODE)
+            {
+             html_text +="<tr><th colspan='7'>Listing</th></tr>";
+            
+              var listingschild=listings.item(i).childNodes;
+
+              for(j=0;j<listingschild.length;j++)
+               {
+                 if(listingschild.item(j).nodeType==ELEMENT_NODE)
+                   {
+                      if(listingschild.item(j).nodeName=="Location")
+                        {
+                           html_text +="<tr><th>Location</th>";
+                           html_text +="<th>Street</th>";
+                           html_text +="<th>City</th>";
+                           html_text +="<th>State</th>";
+                           html_text +="<th>Zip</th>";
+                           html_text +="<th>Lat</th>";
+                           html_text +="<th>Long</th>";
+                           html_text +="</tr>"
+                           html_text +="<tr><td> </td>";
+
+                          
+                          var listinglocationchild=listingschild.item(j).childNodes;
+
+                             for(k=0;k<listinglocationchild.length;k++)
+                             {
+                               if(listinglocationchild.item(k).nodeType==ELEMENT_NODE)
+                                {
+				if(listinglocationchild.item(k).hasChildNodes())
+                                   {
+                                    if(listinglocationchild.item(k).firstChild.nodeValue!=" ")
+                                     {
+                                       html_text +="<td>"+ listinglocationchild.item(k).firstChild.nodeValue+"</td>";
+                                     }
+                                    else
+                                      {
+                                        html_text +="<td>&nbsp;</td>";
+                                      }
+                                   }
+                                  else
+			           {
+                                    html_text +="<td>&nbsp;</td>";
+
+                                   }
+                                  
+                                }
+                             }
+                           html_text +="</tr>";
+
+                        }
+                      if(listingschild.item(j).nodeName=="ListingDetails")
+                        {
+                           html_text +="<tr><th>Details</th>";
+                           html_text +="<th>Status</th>";
+                           html_text +="<th>Price</th>";
+                           html_text +="<th>Lising URL</th>";
+                           html_text +="<th colspan='3'>Image</th>";
+                           html_text +="</tr>";
+                           html_text +="<tr><td> </td>";
+
+
+                            var listingdetailschild=listingschild.item(j).childNodes;
+
+                             for(k=0;k<listingdetailschild.length;k++)
+                             {
+                               if(listingdetailschild.item(k).nodeType==ELEMENT_NODE)
+                                {
+                                  var nodeName=listingdetailschild.item(k).nodeName;
+                                  if(nodeName=="Status" || nodeName=="Price")
+                                   {
+                                     if(listingdetailschild.item(k).hasChildNodes())
+                                      {
+                                        if(listingdetailschild.item(k).firstChild.nodeValue!=" ")
+                                         { 
+                                            html_text +="<td>"+ listingdetailschild.item(k).firstChild.nodeValue+"</td>";
+                                         }
+                                        else
+                                         {
+                                            html_text +="<td>&nbsp;</td>";
+                                         }
+                                      }
+                                     else
+                                      {
+                                        html_text +="<td>&nbsp;</td>";
+
+                                      }
+                                   }
+
+                                  if(nodeName=="ListingUrl")
+                                   {
+                                    if(listingdetailschild.item(k).hasChildNodes())
+                                      {
+                                         if(listingdetailschild.item(k).firstChild.nodeValue!=" ")
+                                         {
+                                           html_text +="<td><a href='"+listingdetailschild.item(k).firstChild.nodeValue+"'>Link to lisitng</td>";
+                                         }
+                                         else
+                                         {
+			                   html_text +="<td>&nbsp;</td>";
+                                         }
+                                      }
+                                     else
+                                      {
+                                        html_text +="<td>&nbsp;</td>";
+
+                                      }
+                                   }
+                                  
+                                  if(nodeName=="Image")
+                                   {
+            			      if(listingdetailschild.item(k).hasChildNodes())
+                                      { 
+                                         if(listingdetailschild.item(k).firstChild.nodeValue!=" ")
+                                         {                                   
+            			           html_text +="<td colspan='3'><img src='"+ listingdetailschild.item(k).firstChild.nodeValue+"' alt='"+listingdetailschild.item(k).firstChild.nodeValue+"' height='200px' width='300px'></td>";
+                                         }
+                                         else
+                                         {
+					   html_text +="<td colspan='3'>&nbsp;</td>";
+                                         }
+                                      }
+                                     else
+                                      {
+                                        html_text +="<td colspan='3'>&nbsp;</td>";
+
+                                      }
+                                   }
+                                  
+                                }                               
+                             }
+
+                           html_text +="</tr>";
+                        }
+                   }
+               }
+            }
+        }
+      html_text +="</table>";
+      html_text +="</html>";
+}
+     
+</script>
+</head>
+<body>
+<br /><br /><br />
+<center>
+<b>Enter URL for Real Estate xml</b><br /><br />
+<form name="sangform" method="POST" id="formid" action="XMLPARSE(URL.value)">
+<input type="text" name="URL" id="URL" maxlength="255" size="30" value="">
+<br /><br />
+<input type= "button" name= "submitquery" id="submit" value= "Submit Query" onClick= "viewxml(this.form)"/>
+</form>
+</center>
+</body>
+</html>
