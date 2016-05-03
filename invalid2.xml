@@ -1,0 +1,18 @@
+<Listings>
+   <Listing>
+      <Location>
+         <StreetAddress>3360 Beethoven St</StreetAddress>
+         <City>Los Angeles</City>
+         <State>CA</State>
+         <Zip>90066</Zip>
+         <Lat> 34.008659</Lat>
+         <Long> -118.447723</Long>
+      </Location>
+      <ListingDetails>
+         <Status>Active</Status>
+         <Price>2195000</Price>
+         <ListingUrl>http://www.realtor.com/realestateandhomes-detail/3360-Beethoven-St_Los-Angeles_CA_90066_M19165-13643?source=web</ListingUrl>
+         <Image>beethoven.jpg</Image>
+      </ListingDetails>
+   </Listing>
+</Listings>
