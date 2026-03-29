@@ -1,0 +1,139 @@
+name: ✦ Add View with Claude
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "Your thoughts / raw ideas for Claude to write about"
+        required: true
+        type: string
+      title:
+        description: "Optional: Post title (Claude generates one if left empty)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  generate-post:
+    name: Generate post with Claude
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate post via Claude API
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          USER_PROMPT: ${{ inputs.prompt }}
+          USER_TITLE: ${{ inputs.title }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys
+          from datetime import datetime
+          import urllib.request, urllib.error
+
+          prompt = os.environ.get("USER_PROMPT", "")
+          title_override = os.environ.get("USER_TITLE", "").strip()
+
+          if not prompt:
+              print("Error: No prompt provided")
+              sys.exit(1)
+
+          system_msg = """You are writing a blog post for Sang Patil's personal website.
+          Sang is a software engineer with experience in distributed systems, cloud infrastructure,
+          networking, and systems programming. He worked at Alcatel-Lucent on LTE base stations
+          and at VMware on NSX network virtualization. He has an MS CS from USC.
+          Write in first person (Sang's voice): direct, technical, insightful, and honest.
+          Avoid jargon for its own sake. Concrete examples over abstract claims."""
+
+          user_msg = f"""Write a blog post based on these thoughts:
+
+          {prompt}
+
+          Return ONLY valid JSON with these exact fields:
+          - "title": a compelling, specific post title (string)
+          - "summary": 2-3 sentence hook/summary (string, no HTML)
+          - "content": full blog post HTML using <p>, <h3>, <ul>, <li>, <strong> tags only
+          - "tags": array of 3-5 lowercase single-word or short tags
+
+          The content should be 400-700 words. Make it genuinely worth reading.
+          Return ONLY the JSON object, no markdown fences, no explanation."""
+
+          payload = json.dumps({
+              "model": "claude-opus-4-6",
+              "max_tokens": 2048,
+              "system": system_msg,
+              "messages": [{"role": "user", "content": user_msg}]
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=payload,
+              headers={
+                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "anthropic-version": "2023-06-01",
+                  "content-type": "application/json",
+              },
+              method="POST"
+          )
+
+          try:
+              with urllib.request.urlopen(req) as response:
+                  api_response = json.loads(response.read())
+          except urllib.error.HTTPError as e:
+              print(f"Claude API error: {e.code} {e.reason}")
+              print(e.read().decode())
+              sys.exit(1)
+
+          raw_text = api_response["content"][0]["text"].strip()
+
+          # Strip markdown fences if present
+          if raw_text.startswith("```"):
+              lines = raw_text.split("\n")
+              raw_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+          post_data = json.loads(raw_text)
+
+          # Load existing posts
+          with open("views-data.json", "r") as f:
+              site_data = json.load(f)
+
+          existing_ids = [p["id"] for p in site_data.get("posts", [])]
+          new_id = max(existing_ids) + 1 if existing_ids else 1
+
+          new_post = {
+              "id": new_id,
+              "date": datetime.now().strftime("%B %d, %Y"),
+              "title": title_override if title_override else post_data["title"],
+              "summary": post_data["summary"],
+              "content": post_data["content"],
+              "tags": post_data.get("tags", []),
+              "prompt": prompt[:200] + ("..." if len(prompt) > 200 else "")
+          }
+
+          site_data.setdefault("posts", []).insert(0, new_post)
+          site_data["meta"] = {
+              "last_updated": datetime.now().strftime("%Y-%m-%d"),
+              "total_posts": len(site_data["posts"])
+          }
+
+          with open("views-data.json", "w") as f:
+              json.dump(site_data, f, indent=2)
+
+          print(f"✦ Post generated: {new_post['title']}")
+          PYEOF
+
+      - name: Commit and push new post
+        run: |
+          git config user.name "Claude"
+          git config user.email "claude-bot@anthropic.com"
+          git add views-data.json
+          TITLE="${{ inputs.title }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="New view from prompt"
+          fi
+          git commit -m "✦ Add view: $TITLE" || echo "Nothing to commit"
+          git push origin HEAD
