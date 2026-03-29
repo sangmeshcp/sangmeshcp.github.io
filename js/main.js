@@ -59,10 +59,10 @@ document.querySelectorAll('.fade-up, .timeline-item').forEach(el => {
 const typedEl = document.getElementById('typedTitle');
 if (typedEl) {
   const phrases = [
-    'Software Engineer',
-    'Systems Builder',
-    'Cloud Architect',
-    'Problem Solver',
+    'Staff Software Engineer',
+    'AI Infrastructure Builder',
+    'Cloud Platform Architect',
+    'Systems Engineer',
   ];
   let phraseIdx = 0;
   let charIdx = 0;
