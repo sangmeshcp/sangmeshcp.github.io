@@ -1,0 +1,26 @@
+{
+  "posts": [
+    {
+      "id": 1,
+      "date": "March 29, 2025",
+      "title": "Why Every Engineer Should Understand the Network Stack",
+      "summary": "Most developers treat networking as a black box. I spent years working on protocol layers at Alcatel-Lucent and it fundamentally changed how I debug, design, and reason about distributed systems.",
+      "content": "<p>When I started my career at Alcatel-Lucent, I was dropped into the deep end of the network stack. We were writing drivers for WCDMA base stations — software that sat just above the hardware and had to be correct, because correctness meant a cell tower working or not working. Millions of phone calls. Real consequences.</p><p>That experience gave me something most software engineers never develop: <strong>intuition for what's actually happening on the wire.</strong></p><h3>The stack is not an abstraction you can ignore</h3><p>Modern web development has done a beautiful job of abstracting away the network. You write <code>fetch()</code>, you get data back. You run a Kubernetes cluster, pods communicate. It all just works — until it doesn't.</p><p>When it breaks, the engineers who understand what's underneath fix it in 20 minutes. Everyone else spends days adding logs and restarting services.</p><h3>What I learned from reading packet traces</h3><p>Spending months staring at Wireshark captures taught me a few things that no book could:</p><ul><li><strong>TCP isn't magic.</strong> Retransmissions, window scaling, and congestion control are all observable and tunable. High latency often has a very specific cause visible in a trace.</li><li><strong>DNS is the source of half your mysteries.</strong> Timeouts that look like service failures are often DNS cache misses or TTL issues.</li><li><strong>Packet loss is not random.</strong> It has patterns — buffer overflows, bad NICs, misconfigured switches. If you can capture, you can find it.</li></ul><h3>The practical takeaway</h3><p>You don't need to write kernel modules to benefit from this knowledge. Spend a few hours with Wireshark. Read the TCP/IP Illustrated series. Next time you have a mysterious network issue in production, you'll have a mental model that actually matches reality.</p><p>The engineers I most respect can navigate fluidly between the application layer and the transport layer. That fluency is rare and incredibly valuable.</p>",
+      "tags": ["networking", "systems", "engineering", "career"],
+      "prompt": "Why engineers should understand the network stack — based on my experience at Alcatel-Lucent"
+    },
+    {
+      "id": 2,
+      "date": "March 25, 2025",
+      "title": "What Software-Defined Networking Actually Changes",
+      "summary": "SDN was supposed to revolutionize networking. Having worked on VMware NSX, here's my honest take on what it delivers, what it doesn't, and where it actually matters.",
+      "content": "<p>Before VMware, I thought SDN was mostly marketing. Network virtualization sounds like something that belongs in a vendor slide deck, not in a production data center.</p><p>After two years working on NSX, I changed my mind — but not for the reasons the marketing says.</p><h3>The real value isn't flexibility, it's programmability</h3><p>Everyone sells SDN as 'flexible networking.' What that actually means in practice: you can write a Python script to create a network topology instead of SSHing into 40 switches. That difference matters at scale.</p><p>At VMware, the moment that clicked for me was watching a new tenant environment spin up in seconds — L2 network, firewall rules, load balancer config — all from an API call. The same process on physical hardware would have taken a human days and still would have had a config error somewhere.</p><h3>Where SDN genuinely struggles</h3><p>Overlay networks add latency. VXLAN encapsulation isn't free, and on high-throughput paths you feel it. For most workloads this is negligible. For latency-sensitive financial systems or real-time applications, it's a real tradeoff.</p><p>Also: debugging is harder. When something breaks in a physical network, you can walk up to a switch. In an overlay, you're staring at virtual tunnels and trying to figure out if the issue is in the overlay, the underlay, or the VM itself. Tooling has improved, but it's still harder.</p><h3>The honest picture</h3><p>SDN is genuinely transformative for large-scale cloud infrastructure. For a 50-server shop, physical networking is probably simpler. The technology is real, the tradeoffs are real, and the sweet spot is bigger than skeptics think but smaller than vendors claim.</p>",
+      "tags": ["SDN", "VMware", "infrastructure", "networking"],
+      "prompt": "Honest take on SDN and what it actually changes, from working on VMware NSX"
+    }
+  ],
+  "meta": {
+    "last_updated": "2025-03-29",
+    "total_posts": 2
+  }
+}
