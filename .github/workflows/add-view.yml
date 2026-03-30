@@ -1,17 +1,11 @@
-name: ✦ Publish View
+name: ✦ Publish View (fallback)
 
-# ---------------------------------------------------------------
-# HOW TO USE:
-#   1. Write your post in Claude (claude.ai or Claude Code)
-#   2. Copy the final content as markdown
-#   3. Go to: Actions → "Publish View" → Run workflow
-#   4. Fill in Title + paste your Markdown content
-#   5. Click "Run workflow" — post appears on the site within ~60s
+# This workflow is a fallback for publishing without Claude Code.
+# The primary way to publish is: tell Claude Code "publish this post" in chat.
 #
-# OPTIONAL: Leave 'content' empty and fill 'prompt' instead.
-#   The workflow will call Claude API to generate the full post.
-#   Requires ANTHROPIC_API_KEY secret to be set in repo settings.
-# ---------------------------------------------------------------
+# Usage here:
+#   Actions → "Publish View" → Run workflow
+#   Fill in title + paste your markdown content → Run
 
 on:
   workflow_dispatch:
@@ -20,387 +14,42 @@ on:
         description: "Post title"
         required: true
         type: string
-
       content:
-        description: "Post content (Markdown). Write in Claude, paste here."
-        required: false
+        description: "Post content (Markdown — write in Claude, paste here)"
+        required: true
         type: string
-        default: ""
-
       summary:
-        description: "Short summary / subtitle (1-2 sentences). Leave blank to auto-extract."
+        description: "Short 1-2 sentence summary (auto-extracted if blank)"
         required: false
         type: string
         default: ""
-
       tags:
         description: "Comma-separated tags (e.g. ai, infrastructure, systems)"
         required: false
         type: string
         default: ""
 
-      prompt:
-        description: "[Alternative] Paste raw thoughts — Claude API will write the full post. Requires ANTHROPIC_API_KEY secret."
-        required: false
-        type: string
-        default: ""
-
 jobs:
   publish:
-    name: Publish post
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Build and publish post
+      - name: Publish post
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          INPUT_TITLE: ${{ inputs.title }}
+          INPUT_TITLE:   ${{ inputs.title }}
           INPUT_CONTENT: ${{ inputs.content }}
           INPUT_SUMMARY: ${{ inputs.summary }}
-          INPUT_TAGS: ${{ inputs.tags }}
-          INPUT_PROMPT: ${{ inputs.prompt }}
+          INPUT_TAGS:    ${{ inputs.tags }}
         run: |
-          python3 << 'PYEOF'
-          import json, os, re, sys
-          from datetime import datetime
-          import urllib.request, urllib.error
-
-          title   = os.environ.get("INPUT_TITLE", "").strip()
-          content = os.environ.get("INPUT_CONTENT", "").strip()
-          summary = os.environ.get("INPUT_SUMMARY", "").strip()
-          tags_raw = os.environ.get("INPUT_TAGS", "").strip()
-          prompt  = os.environ.get("INPUT_PROMPT", "").strip()
-
-          if not title:
-              print("Error: Title is required"); sys.exit(1)
-
-          # ── Path A: Markdown content provided directly ──────────────
-          if content:
-              print("Using provided markdown content...")
-              html = md_to_html(content)
-              if not summary:
-                  # Extract first paragraph as summary
-                  plain = re.sub(r'<[^>]+>', ' ', html)
-                  plain = re.sub(r'\s+', ' ', plain).strip()
-                  summary = plain[:280].rsplit(' ', 1)[0] + '…' if len(plain) > 280 else plain
-              tags = [t.strip().lower() for t in tags_raw.split(',') if t.strip()] if tags_raw else []
-
-          # ── Path B: Prompt provided → call Claude API ────────────────
-          elif prompt:
-              api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-              if not api_key:
-                  print("Error: ANTHROPIC_API_KEY secret is not set. "
-                        "Either set the secret or provide content directly."); sys.exit(1)
-
-              print("Calling Claude API to generate post...")
-              system_msg = (
-                  "You are writing a blog post for Sang Patil's personal website. "
-                  "Sang is a staff software engineer with 13+ years of experience. "
-                  "He works on AI infrastructure, cloud-native platforms, and distributed systems. "
-                  "He's worked at Cohesity, ThoughtSpot, Cisco, VMware, and Alcatel-Lucent. "
-                  "Write in first person (Sang's voice): direct, honest, technically precise. "
-                  "Concrete examples over abstract claims. No fluff."
-              )
-              user_msg = (
-                  f"Write a blog post based on these thoughts:\n\n{prompt}\n\n"
-                  "Return ONLY valid JSON (no markdown fences) with:\n"
-                  '- "content_md": full post in Markdown (use ##, ###, **, *, -, ``` etc)\n'
-                  '- "summary": 1-2 sentence hook (no HTML)\n'
-                  '- "tags": array of 3-5 lowercase tags\n\n'
-                  "Post length: 400-700 words. Make it genuinely worth reading."
-              )
-              payload = json.dumps({
-                  "model": "claude-opus-4-6",
-                  "max_tokens": 2500,
-                  "system": system_msg,
-                  "messages": [{"role": "user", "content": user_msg}]
-              }).encode("utf-8")
-
-              req = urllib.request.Request(
-                  "https://api.anthropic.com/v1/messages", data=payload,
-                  headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
-                           "content-type": "application/json"}, method="POST")
-              try:
-                  with urllib.request.urlopen(req) as r:
-                      api_resp = json.loads(r.read())
-              except urllib.error.HTTPError as e:
-                  print(f"Claude API error {e.code}: {e.read().decode()}"); sys.exit(1)
-
-              raw = api_resp["content"][0]["text"].strip()
-              if raw.startswith("```"):
-                  raw = "\n".join(raw.split("\n")[1:])
-                  if raw.endswith("```"): raw = raw[:-3].strip()
-
-              generated = json.loads(raw)
-              html = md_to_html(generated["content_md"])
-              summary = summary or generated.get("summary", "")
-              tags = [t.strip().lower() for t in tags_raw.split(',') if t.strip()] \
-                     if tags_raw else generated.get("tags", [])
-
-          else:
-              print("Error: Provide either 'content' (markdown) or 'prompt'."); sys.exit(1)
-
-          # ── Save to views-data.json ─────────────────────────────────
-          with open("views-data.json", "r") as f:
-              site_data = json.load(f)
-
-          existing_ids = [p["id"] for p in site_data.get("posts", [])]
-          new_id = max(existing_ids) + 1 if existing_ids else 1
-
-          new_post = {
-              "id": new_id,
-              "date": datetime.now().strftime("%B %d, %Y"),
-              "title": title,
-              "summary": summary,
-              "content": html,
-              "tags": tags,
-          }
-          if prompt:
-              new_post["prompt"] = prompt[:200] + ("…" if len(prompt) > 200 else "")
-
-          site_data.setdefault("posts", []).insert(0, new_post)
-          site_data["meta"] = {
-              "last_updated": datetime.now().strftime("%Y-%m-%d"),
-              "total_posts": len(site_data["posts"])
-          }
-
-          with open("views-data.json", "w") as f:
-              json.dump(site_data, f, indent=2)
-
-          print(f"✦ Published: {title}")
-          PYEOF
-
-          # The md_to_html function needs to be defined before the inline script runs.
-          # Python heredoc with def inside — inject it at top by rewriting the script.
-          # (We define it as a shell step below instead.)
-
-      - name: Convert markdown and publish (with md_to_html available)
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          INPUT_TITLE: ${{ inputs.title }}
-          INPUT_CONTENT: ${{ inputs.content }}
-          INPUT_SUMMARY: ${{ inputs.summary }}
-          INPUT_TAGS: ${{ inputs.tags }}
-          INPUT_PROMPT: ${{ inputs.prompt }}
-        run: |
-          python3 - << 'PYEOF'
-          import json, os, re, sys
-          from datetime import datetime
-          import urllib.request, urllib.error
-
-          # ── Markdown → HTML converter ────────────────────────────────
-          def md_to_html(md):
-              """Convert Markdown to safe HTML for blog posts."""
-              lines = md.split('\n')
-              html_parts = []
-              i = 0
-              while i < len(lines):
-                  line = lines[i]
-
-                  # Code block
-                  if line.startswith('```'):
-                      lang = line[3:].strip()
-                      code_lines = []
-                      i += 1
-                      while i < len(lines) and not lines[i].startswith('```'):
-                          code_lines.append(lines[i])
-                          i += 1
-                      code = '\n'.join(code_lines).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-                      html_parts.append(f'<pre><code class="language-{lang}">{code}</code></pre>')
-                      i += 1; continue
-
-                  # Blockquote
-                  if line.startswith('> '):
-                      bq_lines = []
-                      while i < len(lines) and lines[i].startswith('> '):
-                          bq_lines.append(lines[i][2:])
-                          i += 1
-                      inner = inline_md(' '.join(bq_lines))
-                      html_parts.append(f'<blockquote><p>{inner}</p></blockquote>')
-                      continue
-
-                  # Headings
-                  m = re.match(r'^(#{1,4})\s+(.*)', line)
-                  if m:
-                      lvl = len(m.group(1))
-                      tag = f'h{lvl}'
-                      html_parts.append(f'<{tag}>{inline_md(m.group(2))}</{tag}>')
-                      i += 1; continue
-
-                  # HR
-                  if re.match(r'^[-*_]{3,}$', line.strip()):
-                      html_parts.append('<hr>'); i += 1; continue
-
-                  # Unordered list
-                  if re.match(r'^[-*+] ', line):
-                      items = []
-                      while i < len(lines) and re.match(r'^[-*+] ', lines[i]):
-                          items.append(f'<li>{inline_md(lines[i][2:])}</li>')
-                          i += 1
-                      html_parts.append('<ul>' + ''.join(items) + '</ul>')
-                      continue
-
-                  # Ordered list
-                  if re.match(r'^\d+\. ', line):
-                      items = []
-                      while i < len(lines) and re.match(r'^\d+\. ', lines[i]):
-                          items.append(f'<li>{inline_md(re.sub(r"^\d+\. ", "", lines[i]))}</li>')
-                          i += 1
-                      html_parts.append('<ol>' + ''.join(items) + '</ol>')
-                      continue
-
-                  # Blank line
-                  if not line.strip():
-                      i += 1; continue
-
-                  # Paragraph
-                  para = [line]
-                  i += 1
-                  while i < len(lines) and lines[i].strip() and not re.match(r'^#{1,4}\s', lines[i]) and not lines[i].startswith('```') and not re.match(r'^[-*+] ', lines[i]) and not re.match(r'^\d+\. ', lines[i]):
-                      para.append(lines[i])
-                      i += 1
-                  html_parts.append(f'<p>{inline_md(" ".join(para))}</p>')
-
-              return '\n'.join(html_parts)
-
-          def inline_md(text):
-              """Convert inline markdown (bold, italic, code, links)."""
-              # Escape HTML first
-              text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-              # Bold+italic
-              text = re.sub(r'\*\*\*(.*?)\*\*\*', r'<strong><em>\1</em></strong>', text)
-              # Bold
-              text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
-              text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
-              # Italic
-              text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-              text = re.sub(r'_((?!_).*?)_', r'<em>\1</em>', text)
-              # Inline code
-              text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-              # Links
-              text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" rel="noopener">\1</a>', text)
-              return text
-
-          # ── Inputs ──────────────────────────────────────────────────
-          title    = os.environ.get("INPUT_TITLE", "").strip()
-          content  = os.environ.get("INPUT_CONTENT", "").strip()
-          summary  = os.environ.get("INPUT_SUMMARY", "").strip()
-          tags_raw = os.environ.get("INPUT_TAGS", "").strip()
-          prompt   = os.environ.get("INPUT_PROMPT", "").strip()
-
-          if not title:
-              print("Error: Title is required"); sys.exit(1)
-
-          html_content = ""
-          post_summary = summary
-          tags = [t.strip().lower() for t in tags_raw.split(',') if t.strip()] if tags_raw else []
-          prompt_stored = ""
-
-          # ── Path A: Markdown content ─────────────────────────────────
-          if content:
-              print(f"Publishing '{title}' from provided markdown...")
-              html_content = md_to_html(content)
-              if not post_summary:
-                  plain = re.sub(r'<[^>]+>', ' ', html_content)
-                  plain = re.sub(r'\s+', ' ', plain).strip()
-                  post_summary = (plain[:280].rsplit(' ', 1)[0] + '…') if len(plain) > 280 else plain
-
-          # ── Path B: Prompt → Claude API ──────────────────────────────
-          elif prompt:
-              api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-              if not api_key:
-                  print("Error: ANTHROPIC_API_KEY secret is not set.\n"
-                        "Tip: either set the secret or paste your markdown in the 'content' field.")
-                  sys.exit(1)
-
-              print(f"Generating '{title}' via Claude API...")
-              system_msg = (
-                  "You are writing a blog post for Sang Patil's personal website. "
-                  "Sang is a staff software engineer specialising in AI infrastructure, "
-                  "cloud-native platforms and distributed systems. "
-                  "Write in first-person (Sang's voice): direct, technically precise, honest. "
-                  "Concrete examples over abstract claims. No fluff or filler phrases."
-              )
-              user_msg = (
-                  f"Write a blog post based on these thoughts:\n\n{prompt}\n\n"
-                  "Return ONLY a valid JSON object (no markdown fences) with these keys:\n"
-                  '  "content_md": the full post in GitHub-flavored Markdown\n'
-                  '  "summary": a 1-2 sentence hook (plain text, no HTML)\n'
-                  '  "tags": array of 3-5 lowercase tags\n\n'
-                  "Target length: 450-700 words. Make every sentence earn its place."
-              )
-              payload = json.dumps({
-                  "model": "claude-opus-4-6",
-                  "max_tokens": 2500,
-                  "system": system_msg,
-                  "messages": [{"role": "user", "content": user_msg}]
-              }).encode("utf-8")
-
-              req = urllib.request.Request(
-                  "https://api.anthropic.com/v1/messages", data=payload,
-                  headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
-                           "content-type": "application/json"}, method="POST")
-              try:
-                  with urllib.request.urlopen(req) as r:
-                      api_resp = json.loads(r.read())
-              except urllib.error.HTTPError as e:
-                  print(f"Claude API error {e.code}: {e.read().decode()}"); sys.exit(1)
-
-              raw = api_resp["content"][0]["text"].strip()
-              # Strip markdown fence if Claude wrapped it
-              if raw.startswith("```"):
-                  raw = "\n".join(raw.split("\n")[1:])
-                  if raw.rstrip().endswith("```"):
-                      raw = raw.rstrip()[:-3].strip()
-
-              generated = json.loads(raw)
-              html_content = md_to_html(generated["content_md"])
-              post_summary = post_summary or generated.get("summary", "")
-              if not tags:
-                  tags = generated.get("tags", [])
-              prompt_stored = prompt[:200] + ("…" if len(prompt) > 200 else "")
-
-          else:
-              print("Error: Provide either 'content' (markdown) or 'prompt'.")
-              sys.exit(1)
-
-          # ── Save ─────────────────────────────────────────────────────
-          with open("views-data.json", "r") as f:
-              site_data = json.load(f)
-
-          existing_ids = [p["id"] for p in site_data.get("posts", [])]
-          new_id = max(existing_ids) + 1 if existing_ids else 1
-
-          new_post = {
-              "id": new_id,
-              "date": datetime.now().strftime("%B %d, %Y"),
-              "title": title,
-              "summary": post_summary,
-              "content": html_content,
-              "tags": tags,
-          }
-          if prompt_stored:
-              new_post["prompt"] = prompt_stored
-
-          site_data.setdefault("posts", []).insert(0, new_post)
-          site_data["meta"] = {
-              "last_updated": datetime.now().strftime("%Y-%m-%d"),
-              "total_posts": len(site_data["posts"])
-          }
-
-          with open("views-data.json", "w") as f:
-              json.dump(site_data, f, indent=2, ensure_ascii=False)
-
-          print(f"\n✦ Published: {title}")
-          print(f"  ID:   {new_id}")
-          print(f"  Tags: {', '.join(tags) or '(none)'}")
-          print(f"  URL:  https://www.sangameshpatil.com/views.html#post-{new_id}")
-          PYEOF
+          python3 publish.py \
+            --title   "$INPUT_TITLE" \
+            --content "$INPUT_CONTENT" \
+            --summary "$INPUT_SUMMARY" \
+            --tags    "$INPUT_TAGS" \
+            --no-push
 
       - name: Commit and push
         run: |
