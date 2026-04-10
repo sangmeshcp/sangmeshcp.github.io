@@ -1,0 +1,29 @@
+[package]
+name = "rocksdb-rs"
+version = "0.1.0"
+edition = "2021"
+description = "A RocksDB-inspired LSM-tree storage engine written in pure, safe Rust"
+license = "MIT"
+keywords = ["database", "lsm-tree", "key-value", "storage-engine", "rocksdb"]
+categories = ["database-implementations"]
+
+[dependencies]
+# CRC32 for data-integrity checksums (WAL records, SST blocks)
+crc32fast = "1.4"
+
+[dev-dependencies]
+tempfile = "3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "db_bench"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+lto = "thin"
